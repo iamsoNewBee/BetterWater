@@ -87,7 +87,7 @@ public class BetterWater {
         }
     }
 
-    private void processBlockBreak(World world, int x, int y, int z) {
+    private static void processBlockBreak(World world, int x, int y, int z) {
         // 检查破坏位置的方块是否已经被破坏
         Block currentBlock = world.getBlock(x, y, z);
         if (currentBlock != Blocks.air && currentBlock != Blocks.water && currentBlock != Blocks.flowing_water) {
@@ -138,7 +138,7 @@ public class BetterWater {
     /**
      * 在目标位置周围（水平方向及下方）的空气方块处放置流动水（ID=1）
      */
-    private void placeFlowingWater(World world, int x, int y, int z) {
+    private static void placeFlowingWater(World world, int x, int y, int z) {
         // 检查方向：水平四个方向和正下方
         int[][] directions = { { 1, 0, 0 }, // 东
             { -1, 0, 0 }, // 西
@@ -168,7 +168,7 @@ public class BetterWater {
     /**
      * 检测连通水域并返回结果
      */
-    private WaterDetectionResult detectConnectedWaterBody(World world, int startX, int startY, int startZ) {
+    public static WaterDetectionResult detectConnectedWaterBody(World world, int startX, int startY, int startZ) {
         Queue<int[]> queue = new LinkedList<>();
         HashSet<String> visited = new HashSet<>();
         int sourceCount = 0;
@@ -214,7 +214,7 @@ public class BetterWater {
                 // 检查是否在搜索范围内
                 if (Math.abs(newX - startX) > BetterWaterConfig.searchRadius
                     || Math.abs(newZ - startZ) > BetterWaterConfig.searchRadius
-                    || Math.abs(newY - startY) > 3) {
+                    || Math.abs(newY - startY) > BetterWaterConfig.maxVerticalRange) {
                     continue;
                 }
 
@@ -229,8 +229,29 @@ public class BetterWater {
         return new WaterDetectionResult(sourceCount, totalWaterCount);
     }
 
-    private String key(int x, int y, int z) {
+    private static String key(int x, int y, int z) {
         return x + ":" + y + ":" + z;
+    }
+
+    /**
+     * 从指定坐标开始检测连通水域（如果该坐标不是水，则检查相邻六个方向）
+     */
+    public static WaterDetectionResult detectConnectedWaterBodyFromPos(World world, int x, int y, int z) {
+        Block block = world.getBlock(x, y, z);
+        if (block == Blocks.water || block == Blocks.flowing_water) {
+            return detectConnectedWaterBody(world, x, y, z);
+        }
+        int[][] dirs = { { 1, 0, 0 }, { -1, 0, 0 }, { 0, 0, 1 }, { 0, 0, -1 }, { 0, 1, 0 }, { 0, -1, 0 } };
+        for (int[] dir : dirs) {
+            int nx = x + dir[0];
+            int ny = y + dir[1];
+            int nz = z + dir[2];
+            Block nb = world.getBlock(nx, ny, nz);
+            if (nb == Blocks.water || nb == Blocks.flowing_water) {
+                return detectConnectedWaterBody(world, nx, ny, nz);
+            }
+        }
+        return new WaterDetectionResult(0, 0);
     }
 
     /**
@@ -252,12 +273,12 @@ public class BetterWater {
     /**
      * 存储水域检测结果
      */
-    private static class WaterDetectionResult {
+    public static class WaterDetectionResult {
 
-        final int sourceCount; // 完整水源数量
-        final int totalWaterCount; // 总水方块数量
+        public final int sourceCount; // 完整水源数量
+        public final int totalWaterCount; // 总水方块数量
 
-        WaterDetectionResult(int sourceCount, int totalWaterCount) {
+        public WaterDetectionResult(int sourceCount, int totalWaterCount) {
             this.sourceCount = sourceCount;
             this.totalWaterCount = totalWaterCount;
         }
