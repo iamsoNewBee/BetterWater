@@ -3,6 +3,7 @@ package com.CatFish.BetterWater;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Queue;
+import java.util.Set;
 import java.util.logging.Logger;
 
 import net.minecraft.block.Block;
@@ -11,6 +12,8 @@ import net.minecraft.world.World;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.common.util.FakePlayer;
 import net.minecraftforge.event.world.BlockEvent;
+import net.minecraftforge.fluids.Fluid;
+import net.minecraftforge.fluids.FluidRegistry;
 
 import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.common.Mod;
@@ -33,6 +36,43 @@ public class BetterWater {
     // 用于存储待处理的方块破坏事件
     private static final Queue<PendingBreakEvent> pendingEvents = new LinkedList<>();
 
+    // ========== 新增：流体兼容性支持 ==========
+    /** 缓存所有流体方块（包括原版水和自定义流体） */
+    private static Set<Block> fluidBlocks = null;
+
+    /**
+     * 初始化流体方块集合（惰性加载，在第一次检测时执行）
+     */
+    private static void initFluidBlocks() {
+        if (fluidBlocks != null) return;
+        fluidBlocks = new HashSet<>();
+        // 添加原版水（确保包含，虽然它们也属于流体）
+        fluidBlocks.add(Blocks.water);
+        fluidBlocks.add(Blocks.flowing_water);
+        // 遍历所有已注册的流体，添加其对应的方块
+        for (Fluid fluid : FluidRegistry.getRegisteredFluids()
+            .values()) {
+            Block block = fluid.getBlock();
+            if (block != null) {
+                fluidBlocks.add(block);
+            }
+        }
+        if (BetterWaterConfig.debugMode) {
+            logger.info("Fluid blocks initialized: " + fluidBlocks.size() + " fluids registered.");
+        }
+    }
+
+    /**
+     * 判断一个方块是否为任意流体方块（包括流动和静止）
+     */
+    public static boolean isFluidBlock(Block block) {
+        if (fluidBlocks == null) {
+            initFluidBlocks();
+        }
+        return fluidBlocks.contains(block);
+    }
+    // ====================================
+
     @EventHandler
     public void preInit(FMLPreInitializationEvent event) {
         BetterWaterConfig.init(event.getSuggestedConfigurationFile());
@@ -53,7 +93,6 @@ public class BetterWater {
     public void onWorldTick(TickEvent.WorldTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
 
-        // 处理所有待处理的方块破坏事件
         synchronized (pendingEvents) {
             while (!pendingEvents.isEmpty()) {
                 PendingBreakEvent pending = pendingEvents.poll();
@@ -65,7 +104,6 @@ public class BetterWater {
     @SubscribeEvent
     public void onBlockBreak(BlockEvent.BreakEvent event) {
         if (!BetterWaterConfig.enabled) return;
-
         if (event.getPlayer() instanceof FakePlayer) return;
 
         World world = event.world;
@@ -81,26 +119,18 @@ public class BetterWater {
         Block brokenBlock = event.block;
         if (!BetterWaterConfig.isBlockAffected(brokenBlock)) return;
 
-        // 将事件加入队列，按配置延迟处理
         synchronized (pendingEvents) {
             pendingEvents.add(new PendingBreakEvent(world, x, y, z));
         }
     }
 
     private static void processBlockBreak(World world, int x, int y, int z) {
-        // 检查破坏位置的方块是否已经被破坏
         Block currentBlock = world.getBlock(x, y, z);
         if (currentBlock != Blocks.air && currentBlock != Blocks.water && currentBlock != Blocks.flowing_water) {
-            // 方块还在，可能事件被取消或者其他mod干预了
             return;
         }
 
-        // 检查水平四个方向
-        int[][] directions = { { 1, 0, 0 }, // 东
-            { -1, 0, 0 }, // 西
-            { 0, 0, 1 }, // 南
-            { 0, 0, -1 } // 北
-        };
+        int[][] directions = { { 1, 0, 0 }, { -1, 0, 0 }, { 0, 0, 1 }, { 0, 0, -1 } };
 
         for (int[] dir : directions) {
             int adjX = x + dir[0];
@@ -109,13 +139,11 @@ public class BetterWater {
 
             Block adjacentBlock = world.getBlock(adjX, adjY, adjZ);
 
-            // 检查是否是水方块（包括流动水）
-            if (adjacentBlock == Blocks.water || adjacentBlock == Blocks.flowing_water) {
-                // 检测连通水域中完整水源的数量
+            // 修改：使用 isFluidBlock 判断任意流体，而不只是原版水
+            if (isFluidBlock(adjacentBlock)) {
                 WaterDetectionResult result = detectConnectedWaterBody(world, adjX, adjY, adjZ);
 
                 if (result.sourceCount >= BetterWaterConfig.waterBodyThreshold) {
-                    // 放置完整水源方块
                     world.setBlock(x, y, z, Blocks.water, 0, 3);
                     if (BetterWaterConfig.debugMode) {
                         logger.info(
@@ -126,26 +154,15 @@ public class BetterWater {
                                 z,
                                 result.sourceCount));
                     }
-
-                    // 在周围空气方块放置流动水以触发更新
                     placeFlowingWater(world, x, y, z);
-                    return; // 找到符合条件的就返回，不继续检查其他方向
+                    return;
                 }
             }
         }
     }
 
-    /**
-     * 在目标位置周围（水平方向及下方）的空气方块处放置流动水（ID=1）
-     */
     private static void placeFlowingWater(World world, int x, int y, int z) {
-        // 检查方向：水平四个方向和正下方
-        int[][] directions = { { 1, 0, 0 }, // 东
-            { -1, 0, 0 }, // 西
-            { 0, 0, 1 }, // 南
-            { 0, 0, -1 }, // 北
-            { 0, -1, 0 } // 下方
-        };
+        int[][] directions = { { 1, 0, 0 }, { -1, 0, 0 }, { 0, 0, 1 }, { 0, 0, -1 }, { 0, -1, 0 } };
 
         for (int[] dir : directions) {
             int adjX = x + dir[0];
@@ -153,7 +170,6 @@ public class BetterWater {
             int adjZ = z + dir[2];
 
             Block adjacentBlock = world.getBlock(adjX, adjY, adjZ);
-            // 如果是空气方块，放置流动水（metadata=1）
             if (adjacentBlock == Blocks.air) {
                 world.setBlock(adjX, adjY, adjZ, Blocks.water, 1, 3);
                 if (BetterWaterConfig.debugMode) {
@@ -166,9 +182,14 @@ public class BetterWater {
     }
 
     /**
-     * 检测连通水域并返回结果
+     * 检测连通水域并返回结果（已修改为支持任意流体）
      */
     public static WaterDetectionResult detectConnectedWaterBody(World world, int startX, int startY, int startZ) {
+        // 确保流体集合已初始化
+        if (fluidBlocks == null) {
+            initFluidBlocks();
+        }
+
         Queue<int[]> queue = new LinkedList<>();
         HashSet<String> visited = new HashSet<>();
         int sourceCount = 0;
@@ -185,43 +206,40 @@ public class BetterWater {
 
             Block block = world.getBlock(x, y, z);
 
-            // 如果不是水方块，跳过
-            if (block != Blocks.water && block != Blocks.flowing_water) {
+            // 使用 isFluidBlock 判断是否流体
+            if (!isFluidBlock(block)) {
                 continue;
             }
 
             totalWaterCount++;
             int metadata = world.getBlockMetadata(x, y, z);
 
-            // 如果是完整水源方块，计数
-            if (block == Blocks.water && metadata == 0) {
+            // 判断是否为静止源：metadata == 0 且是流体方块
+            // 注意：如果需要排除岩浆等非水流体，可以在这里添加条件（例如通过 fluid 名称过滤）
+            if (metadata == 0) {
                 sourceCount++;
-
-                // 如果已经达到阈值，可以提前返回
                 if (sourceCount >= BetterWaterConfig.waterBodyThreshold) {
                     return new WaterDetectionResult(sourceCount, totalWaterCount);
                 }
             }
 
-            // 向六个方向扩展搜索
             int[][] directions = { { 1, 0, 0 }, { -1, 0, 0 }, { 0, 0, 1 }, { 0, 0, -1 }, { 0, 1, 0 }, { 0, -1, 0 } };
 
             for (int[] dir : directions) {
-                int newX = x + dir[0];
-                int newY = y + dir[1];
-                int newZ = z + dir[2];
+                int nx = x + dir[0];
+                int ny = y + dir[1];
+                int nz = z + dir[2];
 
-                // 检查是否在搜索范围内
-                if (Math.abs(newX - startX) > BetterWaterConfig.searchRadius
-                    || Math.abs(newZ - startZ) > BetterWaterConfig.searchRadius
-                    || Math.abs(newY - startY) > BetterWaterConfig.maxVerticalRange) {
+                if (Math.abs(nx - startX) > BetterWaterConfig.searchRadius
+                    || Math.abs(nz - startZ) > BetterWaterConfig.searchRadius
+                    || Math.abs(ny - startY) > BetterWaterConfig.maxVerticalRange) { // 使用配置中的垂直范围
                     continue;
                 }
 
-                String key = key(newX, newY, newZ);
+                String key = key(nx, ny, nz);
                 if (!visited.contains(key)) {
                     visited.add(key);
-                    queue.add(new int[] { newX, newY, newZ });
+                    queue.add(new int[] { nx, ny, nz });
                 }
             }
         }
@@ -234,11 +252,11 @@ public class BetterWater {
     }
 
     /**
-     * 从指定坐标开始检测连通水域（如果该坐标不是水，则检查相邻六个方向）
+     * 从指定坐标开始检测连通水域（如果该坐标不是流体，则检查相邻六个方向）
      */
     public static WaterDetectionResult detectConnectedWaterBodyFromPos(World world, int x, int y, int z) {
         Block block = world.getBlock(x, y, z);
-        if (block == Blocks.water || block == Blocks.flowing_water) {
+        if (isFluidBlock(block)) {
             return detectConnectedWaterBody(world, x, y, z);
         }
         int[][] dirs = { { 1, 0, 0 }, { -1, 0, 0 }, { 0, 0, 1 }, { 0, 0, -1 }, { 0, 1, 0 }, { 0, -1, 0 } };
@@ -247,16 +265,13 @@ public class BetterWater {
             int ny = y + dir[1];
             int nz = z + dir[2];
             Block nb = world.getBlock(nx, ny, nz);
-            if (nb == Blocks.water || nb == Blocks.flowing_water) {
+            if (isFluidBlock(nb)) {
                 return detectConnectedWaterBody(world, nx, ny, nz);
             }
         }
         return new WaterDetectionResult(0, 0);
     }
 
-    /**
-     * 存储待处理的方块破坏事件
-     */
     private static class PendingBreakEvent {
 
         final World world;
@@ -270,13 +285,10 @@ public class BetterWater {
         }
     }
 
-    /**
-     * 存储水域检测结果
-     */
     public static class WaterDetectionResult {
 
-        public final int sourceCount; // 完整水源数量
-        public final int totalWaterCount; // 总水方块数量
+        public final int sourceCount;
+        public final int totalWaterCount;
 
         public WaterDetectionResult(int sourceCount, int totalWaterCount) {
             this.sourceCount = sourceCount;

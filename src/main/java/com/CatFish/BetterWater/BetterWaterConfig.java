@@ -1,6 +1,7 @@
 package com.CatFish.BetterWater;
 
 import java.io.File;
+
 import net.minecraftforge.common.config.Configuration;
 
 public class BetterWaterConfig {
@@ -47,31 +48,58 @@ public class BetterWaterConfig {
             config.load();
 
             // 主要开关
-            enabled = config.getBoolean("enabled", Configuration.CATEGORY_GENERAL, true,
-                "Enable/disable the Better Water mod");
+            enabled = config
+                .getBoolean("enabled", Configuration.CATEGORY_GENERAL, true, "Enable/disable the Better Water mod");
 
             // 水域检测参数
-            waterBodyThreshold = config.getInt("waterBodyThreshold", Configuration.CATEGORY_GENERAL, 30, 1, 1000,
+            waterBodyThreshold = config.getInt(
+                "waterBodyThreshold",
+                Configuration.CATEGORY_GENERAL,
+                30,
+                1,
+                1000,
                 "Minimum number of connected water source blocks required to create a new source");
 
-            searchRadius = config.getInt("searchRadius", Configuration.CATEGORY_GENERAL, 10, 1, 50,
+            searchRadius = config.getInt(
+                "searchRadius",
+                Configuration.CATEGORY_GENERAL,
+                10,
+                1,
+                50,
                 "Horizontal search radius for connected water body detection");
 
-            maxBlocksToCheck = config.getInt("maxBlocksToCheck", Configuration.CATEGORY_GENERAL, 1000, 10, 10000,
+            maxBlocksToCheck = config.getInt(
+                "maxBlocksToCheck",
+                Configuration.CATEGORY_GENERAL,
+                1000,
+                10,
+                10000,
                 "Maximum number of blocks to check when detecting water bodies");
 
             // 原版功能扩展参数
-            seaLevelRange = config.getInt("seaLevelRange", Configuration.CATEGORY_GENERAL, 5, 0, 30,
+            seaLevelRange = config.getInt(
+                "seaLevelRange",
+                Configuration.CATEGORY_GENERAL,
+                5,
+                0,
+                30,
                 "Vertical range around sea level (63) where water can be generated");
 
-            processingDelayTicks = config.getInt("processingDelayTicks", Configuration.CATEGORY_GENERAL, 1, 0, 20,
+            processingDelayTicks = config.getInt(
+                "processingDelayTicks",
+                Configuration.CATEGORY_GENERAL,
+                1,
+                0,
+                20,
                 "Number of ticks to wait before processing block break (0 for immediate)");
 
-            alwaysCheckAirBlocks = config.getBoolean("alwaysCheckAirBlocks", Configuration.CATEGORY_GENERAL, true,
+            alwaysCheckAirBlocks = config.getBoolean(
+                "alwaysCheckAirBlocks",
+                Configuration.CATEGORY_GENERAL,
+                true,
                 "Always check for air blocks near broken blocks and place flowing water to trigger updates");
 
-            debugMode = config.getBoolean("debugMode", Configuration.CATEGORY_GENERAL, false,
-                "Enable debug logging");
+            debugMode = config.getBoolean("debugMode", Configuration.CATEGORY_GENERAL, false, "Enable debug logging");
 
         } catch (Exception e) {
             BetterWater.logger.warning("Failed to load config: " + e.getMessage());
@@ -89,8 +117,7 @@ public class BetterWaterConfig {
         if (block == null) return false;
 
         // 排除水、流动水、空气、基岩、岩浆、流动岩浆、黑曜石等
-        if (block == net.minecraft.init.Blocks.water
-            || block == net.minecraft.init.Blocks.flowing_water
+        if (block == net.minecraft.init.Blocks.water || block == net.minecraft.init.Blocks.flowing_water
             || block == net.minecraft.init.Blocks.air
             || block == net.minecraft.init.Blocks.bedrock
             || block == net.minecraft.init.Blocks.lava

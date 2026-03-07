@@ -1,24 +1,34 @@
 package com.CatFish.BetterWater;
 
-import net.minecraft.launchwrapper.IClassTransformer;
-import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.ClassWriter;
-import org.objectweb.asm.Type;
-import org.objectweb.asm.tree.*;
+import static org.objectweb.asm.Opcodes.*;
 
 import java.util.Arrays;
 
-import static org.objectweb.asm.Opcodes.*;
+import net.minecraft.launchwrapper.IClassTransformer;
+
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Type;
+import org.objectweb.asm.tree.AbstractInsnNode;
+import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.FieldInsnNode;
+import org.objectweb.asm.tree.InsnList;
+import org.objectweb.asm.tree.InsnNode;
+import org.objectweb.asm.tree.JumpInsnNode;
+import org.objectweb.asm.tree.LabelNode;
+import org.objectweb.asm.tree.MethodInsnNode;
+import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.VarInsnNode;
 
 public class BetterWaterTransformer implements IClassTransformer {
-    private static final String[] targetClasses = {
-        "net.minecraft.block.BlockDynamicLiquid"
-    };
+
+    private static final String[] targetClasses = { "net.minecraft.block.BlockDynamicLiquid" };
 
     @Override
     public byte[] transform(String name, String transformedName, byte[] targetClass) {
         boolean isObfuscated = !name.equals(transformedName);
-        int index = Arrays.asList(targetClasses).indexOf(transformedName);
+        int index = Arrays.asList(targetClasses)
+            .indexOf(transformedName);
         return index != -1 ? transform(index, targetClass, isObfuscated) : targetClass;
     }
 
@@ -46,7 +56,8 @@ public class BetterWaterTransformer implements IClassTransformer {
 
     private static void transformBlockDynamicLiquid(ClassNode classNode, boolean isObfuscated) {
         final String UPDATE_TICK = isObfuscated ? "a" : "updateTick";
-        final String UPDATE_TICK_DESC = isObfuscated ? "(Lahb;IIILjava/util/Random;)V" : "(Lnet/minecraft/world/World;IIILjava/util/Random;)V";
+        final String UPDATE_TICK_DESC = isObfuscated ? "(Lahb;IIILjava/util/Random;)V"
+            : "(Lnet/minecraft/world/World;IIILjava/util/Random;)V";
         final String FIELD_NAME = isObfuscated ? "a" : "field_149815_a";
 
         for (MethodNode method : classNode.methods) {
@@ -81,20 +92,24 @@ public class BetterWaterTransformer implements IClassTransformer {
                     toInsert.add(new VarInsnNode(ILOAD, 2)); // x
                     toInsert.add(new VarInsnNode(ILOAD, 3)); // y
                     toInsert.add(new VarInsnNode(ILOAD, 4)); // z
-                    toInsert.add(new MethodInsnNode(INVOKESTATIC,
-                        Type.getInternalName(BetterWaterHooks.class),
-                        "shouldGenerateSource",
-                        hookDesc,
-                        false));
+                    toInsert.add(
+                        new MethodInsnNode(
+                            INVOKESTATIC,
+                            Type.getInternalName(BetterWaterHooks.class),
+                            "shouldGenerateSource",
+                            hookDesc,
+                            false));
                     toInsert.add(new JumpInsnNode(IFNE, continueLabel));
 
                     // 如果返回 false，设置 field_149815_a = 0
                     toInsert.add(new VarInsnNode(ALOAD, 0));
                     toInsert.add(new InsnNode(ICONST_0));
-                    toInsert.add(new FieldInsnNode(PUTFIELD,
-                        isObfuscated ? "akr" : "net/minecraft/block/BlockDynamicLiquid",
-                        FIELD_NAME,
-                        "I"));
+                    toInsert.add(
+                        new FieldInsnNode(
+                            PUTFIELD,
+                            isObfuscated ? "akr" : "net/minecraft/block/BlockDynamicLiquid",
+                            FIELD_NAME,
+                            "I"));
                     toInsert.add(continueLabel);
 
                     // 插入在目标节点之前
