@@ -18,7 +18,7 @@ public class BetterWaterConfig {
     public static int searchRadius = 10;
 
     /** 垂直搜索范围（单位：方块），仅检测起始点上下各1格 */
-    public static int maxVerticalRange = 1; //
+    public static int maxVerticalRange = 1;
 
     /** 最大检测方块数，防止性能问题（默认1000） */
     public static int maxBlocksToCheck = 1000;
@@ -35,6 +35,16 @@ public class BetterWaterConfig {
 
     /** 调试模式（输出详细日志） */
     public static boolean debugMode = false;
+
+    // ========== 群系限制配置（来自 RegionalWater） ==========
+    public static int[] validDims = {0};
+    public static int[] bannedDims = {-1, 1};
+    public static int[] oceanDims = {};
+    public static boolean reverse = false;
+    public static String[] validBiomeDictionary = {"OCEAN", "BEACH", "RIVER"};
+    public static String[] bannedBiomeDictionary = {"NETHER", "END"};
+    public static int waterLower = 0;
+    public static int waterUpper = 255;
 
     private static Configuration config;
 
@@ -100,6 +110,31 @@ public class BetterWaterConfig {
                 "Always check for air blocks near broken blocks and place flowing water to trigger updates");
 
             debugMode = config.getBoolean("debugMode", Configuration.CATEGORY_GENERAL, false, "Enable debug logging");
+
+            // 群系限制参数
+            validDims = config.get("general", "validDims", validDims,
+                "Dimension array to allow infinite source water to be created. Unused if 'reversed' is set to true").getIntList();
+
+            bannedDims = config.get("general", "bannedDims", bannedDims,
+                "Dimension array to ban infinite source water to be created (overrides 'validDims' and 'validBiomes')").getIntList();
+
+            oceanDims = config.get("general", "oceanDims", oceanDims,
+                "Dimension array that allows water regeneration regardless of biome (overrides all other config settings)").getIntList();
+
+            reverse = config.getBoolean("reverse", "general", reverse,
+                "If true, water can create infinite sources everywhere except in banned dimensions and biomes");
+
+            validBiomeDictionary = config.getStringList("validBiomes", "general", validBiomeDictionary,
+                "Biome dictionary entries where infinite sources are allowed (e.g., OCEAN, BEACH, RIVER)");
+
+            bannedBiomeDictionary = config.getStringList("bannedBiomes", "general", bannedBiomeDictionary,
+                "Biome dictionary entries where infinite sources are NOT allowed (overrides valid biomes)");
+
+            waterLower = config.getInt("waterLowerBounds", "general", waterLower, 0, 255,
+                "The lowest Y-level where source water can form");
+
+            waterUpper = config.getInt("waterUpperBounds", "general", waterUpper, 0, 255,
+                "The highest Y-level where source water can form");
 
         } catch (Exception e) {
             BetterWater.logger.warning("Failed to load config: " + e.getMessage());
