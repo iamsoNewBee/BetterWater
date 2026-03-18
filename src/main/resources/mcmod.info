@@ -2,8 +2,8 @@
   {
     "modid": "betterwater",
     "name": "Better Water",
-    "description": "Automatically creates water source blocks when breaking blocks near large bodies of water",
-    "version": "3.0",
+    "description": "Automatically creates water source blocks when breaking blocks near large bodies of water (and lava)",
+    "version": "3.6",
     "mcversion": "1.7.10",
     "url": "",
     "updateUrl": "",
